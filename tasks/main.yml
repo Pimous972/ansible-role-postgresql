@@ -4,7 +4,7 @@
   yum:
     name: https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
     state: present
-    disable_gpg_check: yes
+    disable_gpg_check: true
   become: true
 
 - name: Installation de libicu
@@ -54,7 +54,7 @@
     line: 'max_connections = 200'
     backup: true
   become: true
-
+  notify: Démarrage et activation du service postgresql
 
 - name: Activation du firewall pour postgresql
   firewalld:
@@ -62,13 +62,6 @@
     immediate: true
     permanent: true
     state: enabled
-  become: true
-
-- name: Démarrage et activation du service postgresql
-  service:
-    name: postgresql-{{ postgresql_version }}
-    state: restarted
-    enabled: true
   become: true
 
 - name: Création des utilisateurs dba, jiradb, confluencedb, backupUser

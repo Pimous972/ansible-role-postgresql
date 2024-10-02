@@ -1,2 +1,8 @@
 ---
 # handlers file for roles/ansible-role-postgresql
+- name: Démarrage et activation du service postgresql
+  service:
+    name: postgresql-{{ postgresql_version }}
+    state: restarted
+    enabled: true
+  become: true
