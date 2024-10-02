@@ -1,0 +1,83 @@
+---
+# tasks file for oscar.postgresql
+- name: Ajouter le dépôt PostgreSQL avec yum sans vérification GPG
+  yum:
+    name: https://download.postgresql.org/pub/repos/yum/reporpms/EL-7-x86_64/pgdg-redhat-repo-latest.noarch.rpm
+    state: present
+    disable_gpg_check: yes
+  become: true
+
+- name: Installation de libicu
+  package:
+    name: '{{ item }}'
+    state: present
+  loop:
+    - libicu
+    - python3-psycopg2
+    - python-psycopg2
+    - "postgresql{{ postgresql_version }}-contrib"
+    - "postgresql{{ postgresql_version }}"
+    - "postgresql{{ postgresql_version }}-server"
+  become: true
+
+- name: Vérification si postgresql a été initialisé
+  stat:
+    path: '/var/lib/pgsql/{{ postgresql_version }}/data/pg_hba.conf'
+  register: postgres_data
+  become: true
+
+- name: Initialisation de postgresql
+  command: '/usr/pgsql-{{ postgresql_version }}/bin/postgresql-{{ postgresql_version }}-setup initdb'
+  become: true
+  when: not postgres_data.stat.exists
+
+- name: Autoriser les connexions des utilisateurs depuis les hôtes d'application
+  lineinfile:
+    path: "/var/lib/pgsql/{{ postgresql_version }}/data/pg_hba.conf"
+    insertbefore: EOF
+    line: "{{ item.type }}\t\t{{ item.database }}\t\t{{ item.user }}\t\t{{ item.address|default('') }}\t\t{{ item.auth_method }} "
+  loop: "{{ postgresql_hba_entries }}"
+  when: postgresql_hba_entries | length > 0
+  become: true
+
+- name: Ajouter la configuration listen_addresses
+  lineinfile:
+    path: '/var/lib/pgsql/{{ postgresql_version }}/data/postgresql.conf'
+    insertbefore: "^#?listen_addresses = 'localhost'"
+    line: "listen_addresses = '*'"
+  become: true
+
+- name: Modification la variable max_connexion 100 -> 200
+  lineinfile:
+    path: '/var/lib/pgsql/{{ postgresql_version }}/data/postgresql.conf'
+    regexp: '^max_connections\s*=\s*100'
+    line: 'max_connections = 200'
+    backup: true
+  become: true
+
+
+- name: Activation du firewall pour postgresql
+  firewalld:
+    service: postgresql
+    immediate: true
+    permanent: true
+    state: enabled
+  become: true
+
+- name: Démarrage et activation du service postgresql
+  service:
+    name: postgresql-{{ postgresql_version }}
+    state: restarted
+    enabled: true
+  become: true
+
+- name: Création des utilisateurs dba, jiradb, confluencedb, backupUser
+  community.postgresql.postgresql_user:
+    state: present
+    name: 'dba'
+    password: 'password'
+    priv: 'ALL'
+    db: 'postgres'
+    role_attr_flags: 'SUPERUSER'
+  become_user: postgres
+  become: true
