@@ -38,6 +38,7 @@
     line: "{{ item.type }}\t\t{{ item.database }}\t\t{{ item.user }}\t\t{{ item.address|default('') }}\t\t{{ item.auth_method }} "
   loop: "{{ postgresql_hba_entries }}"
   when: postgresql_hba_entries | length > 0
+  notify: Démarrage et activation du service postgresql
   become: true
 
 - name: Ajouter la configuration listen_addresses
@@ -45,6 +46,7 @@
     path: '/var/lib/pgsql/{{ postgresql_version }}/data/postgresql.conf'
     insertbefore: "^#?listen_addresses = 'localhost'"
     line: "listen_addresses = '*'"
+  notify: Démarrage et activation du service postgresql
   become: true
 
 - name: Modification la variable max_connexion 100 -> 200
@@ -63,6 +65,14 @@
     permanent: true
     state: enabled
   become: true
+
+- name: Démarrage et activation du service postgresql
+  service:
+    name: postgresql-{{ postgresql_version }}
+    state: restarted
+    enabled: true
+  become: true
+  when: not postgres_data.stat.exists
 
 - name: Création des utilisateurs dba, jiradb, confluencedb, backupUser
   community.postgresql.postgresql_user:
